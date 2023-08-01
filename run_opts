@@ -1,0 +1,7 @@
+for i in 1 2 3 4 5 
+do
+  echo $i
+  sed s/WHICH_TEST_NUM/$i/ skew.ipynb > skew_test_${i}.ipynb
+  sbatch papermill.sh skew_test_${i}.ipynb
+done
+
