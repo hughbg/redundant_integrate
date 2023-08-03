@@ -217,6 +217,17 @@ class Equation:
 def r(x):
     return np.round(x, 4)     # precision is not working
 
+class InvalidIntegrationStrategy(Exception):
+    """Exception raised for errors in the spec
+
+    Attributes:
+        message -- explanation of the error
+    """
+
+    def __init__(self, message="Logical error in baseline/time combination spec"):
+        self.message = message
+        super().__init__(self.message)
+
 
 class Integrator:
     
@@ -239,10 +250,10 @@ class Integrator:
             for key in cfg:
                 self.cfg[key] = cfg[key]  
                 
-        if self.cfg["allow_i_i"] and not self.cfg["time_interleaving"]:
-            raise RuntimeError("Allowing a baseline multiplied by itself at the SAME time")
+        #if self.cfg["allow_i_i"] and not self.cfg["time_interleaving"]:
+        #    raise InvalidIntegrationStrategy("Allowing a baseline multiplied by itself at the SAME time")
         if self.cfg["both_time_directions"] and not self.cfg["time_interleaving"]:
-            raise RuntimeError("Can't do both time directions when there is no time interleaving")
+            raise InvalidIntegrationStrategy("Can't do both time directions when there is no time interleaving")
             
         self.systematic_cfg = systematic_cfg
 
@@ -459,8 +470,8 @@ class Integrator:
     def integrate(self, num_bl, num_freq=1, num_time=1, no_time_avg=False, baseline_allocator=None):
         
         if self.cfg["time_interleaving"]:
-            assert num_time > 1, "Can't do time interleaving with <= 1 time"
-            assert num_time%2 == 0, "Can't do time interleaving with an odd number of times"                        
+            if num_time <= 1: raise InvalidIntegrationStrategy("Can't do time interleaving with <= 1 time")
+            if num_time%2 == 1: raise InvalidIntegrationStrategy("Can't do time interleaving with an odd number of times")                        
         
         if baseline_allocator is None:
             bl_alloc = BlAlloc(true_signal=self.signal, noise_sigma=self.noise_sigma, 
@@ -603,8 +614,10 @@ def tests():
                                 integrator = Integrator(cfg=cfg)
                                 y = integrator.integrate(10)
                                 num_run += 1
-                            except:
+                            except InvalidIntegrationStrategy as e:
                                 pass
+                            except:
+                                raise RuntimeError(cfg, "failed")
                             
                             if x is not None:
                                 assert np.abs(y.imag) < 1e-15
@@ -636,8 +649,10 @@ def tests():
 
                                 x = integrator.integrate(10, num_freq=10, num_time=10)
                                 num_run += 1
-                            except:
+                            except InvalidIntegrationStrategy as e:
                                 pass
+                            except:
+                                raise RuntimeError(cfg, "failed")
                             
                             if x is not None:
                                 error = np.max(np.abs(x-np.abs(signal)**2))
@@ -677,11 +692,15 @@ class Case6(Integrator):
         cfg = { "allow_multiple_use": True, "all_combs": True }
         super().__init__(signal=signal, cfg=cfg)
 
-        
-#case = Case6()
+class Case7(Integrator):
+    def __init__(self, signal=0j):
+        cfg = { "allow_i_i": True, "allow_multiple_use": True }
+        super().__init__(signal=signal, cfg=cfg)
+       
+#case = Case5()
 #case.signal = (10+10j)
-#case.noise_sigma = 0
-#print(case.run_one_integration(50, nfreq=2, ntime=100))
+#case.print_equation()
+#case.test_run_plots(5, fiducial_bls=10, num_freq=20, max_times=2)
 
 #case = Case2(signal=10+10j)
 #case.print_equation()
